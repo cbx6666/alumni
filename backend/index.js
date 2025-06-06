@@ -19,11 +19,18 @@ app.use(session({
   cookie: { secure: false }
 }));
 
+app.get('/', (req, res) => {
+  res.send('Backend is running');
+});
+
 app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const email = req.body.email || req.body.account || req.body.username;
+  const { password } = req.body;
+
+  console.log('登录请求体:', req.body)//====================
 
   if (!email || !password) {
-    return res.status(400).json({ message: '邮箱和密码不能为空' });
+    return res.status(400).json({ error: '邮箱和密码不能为空' });
   }
 
   let connection;
@@ -42,28 +49,36 @@ app.post('/login', async (req, res) => {
 
     const account = result.rows[0];
     if (!account) {
-      return res.status(404).json({ message: '账号不存在或未激活' });
+      return res.status(404).json({ error: '账号不存在或未激活' });
     }
 
     const passwordMatch = await bcrypt.compare(password, account.PASSWORD);
     if (!passwordMatch) {
-      return res.status(401).json({ message: '密码错误' });
+      return res.status(401).json({ error: '密码错误' });
     }
 
-    // 登录成功，保存 session
-    req.session.loggedIn = true;
-    req.session.user = { email: account.LOGIN_EMAIL };
-    res.json({ message: '登录成功' });
+    res.json({
+      success: true,
+      token: 'mocked-token-123', // 实际开发应生成 JWT
+      user: {
+        id: account.ID,
+        nickname: account.NICKNAME || '',
+        username: account.LOGIN_EMAIL,
+        email: account.LOGIN_EMAIL,
+        avatar: '/default/avatar.jpg'
+      }
+    });
 
   } catch (err) {
     console.error('登录失败:', err);
-    res.status(500).json({ message: '服务器错误' });
+    res.status(500).json({ error: '服务器错误' });
   } finally {
     if (connection) {
       await connection.close();
     }
   }
 });
+
 
 function requireLogin(req, res, next) {
   if (req.session && req.session.loggedIn) return next();

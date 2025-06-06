@@ -92,7 +92,7 @@ const handleSubmit = async () => {
   try {
     // 调用登陆方法
     const result = await auth.login({
-      account: formData.account,
+      email: formData.account,
       password: formData.password
     })
     

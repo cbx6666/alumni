@@ -62,7 +62,10 @@ export const useAuthStore = defineStore('auth', () => {
   // 登录处理
   const login = async (credentials) => {
     try {
-      const response = await axios.post('/api/login', credentials)
+      const response = await axios.post('/api/login', {
+                        email: credentials.email,
+                        password: credentials.password
+                       })
       
       if (response.data.success) {
         localStorage.setItem('authToken', response.data.token)
