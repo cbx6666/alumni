@@ -19,7 +19,7 @@
 </template>
 
 <script setup>
-import LoginForm from '../../components/auth/Loginform.vue'
+import LoginForm from '../../components/auth/LoginForm.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
