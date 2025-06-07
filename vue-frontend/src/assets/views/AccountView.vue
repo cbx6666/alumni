@@ -91,15 +91,18 @@ onMounted(fetchAccountData)
   max-width: 700px;
   margin: auto;
 }
+
 .avatar {
   width: 120px;
   border-radius: 50%;
   margin-bottom: 1rem;
 }
+
 label {
   display: block;
   margin: 10px 0;
 }
+
 input[type="file"] {
   margin-top: 10px;
 }

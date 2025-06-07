@@ -11,7 +11,7 @@
       <!-- 右侧登录表单 -->
       <div class="form-section">
         <div class="form-container">
-          <LoginForm @login-success="handleLoginSuccess"/>
+          <LoginForm />
         </div>
       </div>
     </div>
@@ -20,15 +20,6 @@
 
 <script setup>
 import LoginForm from '../../components/auth/LoginForm.vue'
-import { useRouter } from 'vue-router'
-
-const router = useRouter()
-
-const handleLoginSuccess = () => {
-  router.push('/')
-}
-  
-
 </script>
 
 

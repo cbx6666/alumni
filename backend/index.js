@@ -21,7 +21,11 @@ require('dotenv').config();
 const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // 明确指定你的前端源
+  credentials: true // 允许前端请求携带 Cookie
+}));
+
 app.use(session({
   secret: 'super-secret-key',
   resave: false,
@@ -34,13 +38,11 @@ app.get('/', (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-  const email = req.body.email || req.body.account || req.body.username;
-  const { password } = req.body;
-
-  console.log('登录请求体:', req.body)//====================
+  const { email, password } = req.body;
+  console.log('登录请求体:', req.body);
 
   if (!email || !password) {
-    return res.status(400).json({ error: '邮箱和密码不能为空' });
+    return res.status(400).json({ message: '邮箱和密码不能为空' });
   }
 
   let connection;
@@ -52,43 +54,58 @@ app.post('/login', async (req, res) => {
     });
 
     const result = await connection.execute(
-      `SELECT * FROM accounts WHERE login_email = :email AND is_active = 1`,
+      `SELECT ACCOUNT_ID, LOGIN_EMAIL, PASSWORD, NICKNAME, STUDENT_ID FROM accounts WHERE login_email = :email AND is_active = 1`,
       { email },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      { outFormat: oracledb.OBJECT }
     );
 
-    const account = result.rows[0];
-    if (!account) {
-      return res.status(404).json({ error: '账号不存在或未激活' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: '账号不存在或未激活' });
     }
+
+    const account = result.rows[0];
+    console.log('[登录接口调试] 从数据库查到的原始 account 对象:', account);
 
     const passwordMatch = (password === account.PASSWORD);
     if (!passwordMatch) {
-      return res.status(401).json({ error: '密码错误' });
+      return res.status(401).json({ message: '密码错误' });
     }
+
+    req.session.loggedIn = true;
+    req.session.user = {
+      id: account.ACCOUNT_ID,
+      studentId: account.STUDENT_ID,
+      nickname: account.NICKNAME || '',
+      email: account.LOGIN_EMAIL
+    };
+
+    const userPayload = {
+      id: account.ACCOUNT_ID,
+      studentId: account.STUDENT_ID,
+      nickname: account.NICKNAME || '',
+      username: account.LOGIN_EMAIL,
+      email: account.LOGIN_EMAIL,
+      avatar: '/default/avatar.jpg'
+    };
+
+    // 决定性日志：打印出我们最终发给前端的数据
+    console.log('[决定性日志] 准备发送给前端的 user 对象:', userPayload);
 
     res.json({
       success: true,
-      token: 'mocked-token-123', // 实际开发应生成 JWT
-      user: {
-        id: account.ID,
-        nickname: account.NICKNAME || '',
-        username: account.LOGIN_EMAIL,
-        email: account.LOGIN_EMAIL,
-        avatar: '/default/avatar.jpg'
-      }
+      token: 'mocked-token-123',
+      user: userPayload
     });
 
   } catch (err) {
-    console.error('登录失败:', err.stack || err.message || err);
-    res.status(500).json({ error: '服务器错误' });
+    console.error('登录失败:', err);
+    res.status(500).json({ message: '服务器错误' });
   } finally {
     if (connection) {
       await connection.close();
     }
   }
 });
-
 
 function requireLogin(req, res, next) {
   if (req.session && req.session.loggedIn) return next();
@@ -124,6 +141,7 @@ app.get('/alumni', requireLogin, async (req, res) => {
 // 查看一个校友的全部信息
 app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
   const studentId = req.params.student_id;
+  console.log(`[调试信息] 收到请求，正在尝试获取学号为: "${studentId}" 的详细信息...`);
   let connection;
 
   try {
@@ -190,7 +208,7 @@ app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
 
     // 校友不存在
     if (alumniResult.rows.length === 0) {
-      return res.status(403).json({ message: '未找到该校友' });
+      return res.status(404).json({ message: '未找到该校友' });
     }
 
     // 构造完整数据

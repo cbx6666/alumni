@@ -30,7 +30,7 @@ const routes = [
     }
   },
   {
-    path: '/profile',
+    path: '/alumni/:studentId/details',
     name: 'Profile',
     component: ProfileView,
     meta: {

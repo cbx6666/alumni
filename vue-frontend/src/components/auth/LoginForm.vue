@@ -90,26 +90,26 @@ const handleSubmit = async () => {
   submitError.value = ''
 
   try {
-    // 调用登陆方法
+    // 【关键修改】只调用登录，不再需要关心它的返回值用于导航
     const result = await auth.login({
       email: formData.account,
       password: formData.password
     })
     
-    // 检查登录结果
-    if (result.success) {
-      emit('login-success')
-    } else {
+    // 如果登录失败，显示错误信息
+    if (!result.success) {
       submitError.value = result.message || '登录失败，请重试'
     }
+    // 登录成功时的跳转，已经由 auth.js 内部处理，这里什么都不用做
+
   } catch (error) {
-    submitError.value = '服务器错误，请稍后再试'
-    console.error('Login error:', error)
+    // 这个 catch 实际上可能不会被触发了，因为 auth.js 内部处理了
+    submitError.value = '客户端发生错误，请稍后再试'
+    console.error('Login form submission error:', error)
   } finally {
     isSubmitting.value = false
   }
 }
-
 </script>
 
 <style scoped>
