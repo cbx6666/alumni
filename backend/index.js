@@ -5,7 +5,7 @@ const oracledb = require('oracledb');
 try {
   oracledb.initOracleClient({ libDir: 'D:\\oracle_client\\instantclient_21_18' });
   console.log('✅ Oracle Client 初始化成功 - 主服务');
-  console.log('Oracle 客户端版本:', oracledb.oracleClientVersion); 
+  console.log('Oracle 客户端版本:', oracledb.oracleClientVersion);
   console.log('Oracle 客户端版本字符串:', oracledb.oracleClientVersionString);
 } catch (err) {
   console.error('❌ Oracle Client 初始化失败:', err);
@@ -95,6 +95,7 @@ function requireLogin(req, res, next) {
   return res.status(401).json({ message: '未登录，拒绝访问' });
 }
 
+// 查看所有校友的基本信息
 app.get('/alumni', requireLogin, async (req, res) => {
   let connection;
   try {
@@ -120,6 +121,7 @@ app.get('/alumni', requireLogin, async (req, res) => {
   }
 });
 
+// 查看一个校友的全部信息
 app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
   const studentId = req.params.student_id;
   let connection;
@@ -131,8 +133,7 @@ app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
       connectString: process.env.ORACLE_DSN
     });
 
-    // 查询基本信息 + 班级信息
-    const [alumniResult, classResult, interestResult, experienceResult, imageResult] = await Promise.all([
+    const [alumniResult, classResult, interestResult, experienceResult, imageResult, accountResult] = await Promise.all([
       connection.execute(
         `SELECT student_id, name, email, enrollment_year, graduation_year, degree, url, class_id
          FROM alumni
@@ -176,12 +177,20 @@ app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
          ORDER BY upload_time DESC`,
         [studentId],
         { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      ),
+
+      connection.execute(
+        `SELECT nickname
+         FROM accounts
+         WHERE student_id = :id`,
+        [studentId],
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
       )
     ]);
 
     // 校友不存在
     if (alumniResult.rows.length === 0) {
-      return res.status(404).json({ message: '未找到该校友' });
+      return res.status(403).json({ message: '未找到该校友' });
     }
 
     // 构造完整数据
@@ -189,6 +198,7 @@ app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
 
     res.json({
       ...alumni,
+      nickname: accountResult.rows[0] ? accountResult.rows[0].NICKNAME : null,
       class: classResult.rows[0] || null,
       interests: interestResult.rows,
       experiences: experienceResult.rows,
@@ -200,6 +210,90 @@ app.get('/alumni/:student_id/details', requireLogin, async (req, res) => {
     res.status(500).json({ message: '服务器错误' });
   } finally {
     if (connection) await connection.close();
+  }
+});
+
+// 修改账号密码
+app.post('/alumni/:student_id/update-password', requireLogin, async (req, res) => {
+  const studentId = req.params.student_id;
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.trim() === '') {
+    return res.status(400).json({ message: '新密码不能为空' });
+  }
+
+  // 新增：密码长度校验
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: '密码长度不能少于6位' });
+  }
+
+  let connection;
+  try {
+    connection = await oracledb.getConnection({
+      user: process.env.ORACLE_USER,
+      password: process.env.ORACLE_PASSWORD,
+      connectString: process.env.ORACLE_DSN
+    });
+
+    const result = await connection.execute(
+      `UPDATE accounts SET password = :pwd WHERE student_id = :id`,
+      { pwd: newPassword, id: studentId },
+      { autoCommit: true } // 对于 DML 操作 (UPDATE, INSERT, DELETE)，必须设置 autoCommit
+    );
+
+    if (result.rowsAffected === 0) {
+      return res.status(404).json({ message: '未找到该学号对应的账号' });
+    }
+
+    res.json({ success: true, message: '密码修改成功' });
+
+  } catch (err) {
+    console.error(`为学号 ${studentId} 修改密码失败:`, err);
+    res.status(500).json({ message: '服务器错误，修改密码失败' });
+  } finally {
+    if (connection) {
+      await connection.close();
+    }
+  }
+});
+
+// 修改昵称
+app.post('/alumni/:student_id/update-nickname', requireLogin, async (req, res) => {
+  const studentId = req.params.student_id;
+  const { newNickname } = req.body;
+
+  // 校验昵称是否为空或仅有空白字符
+  if (typeof newNickname !== 'string' || newNickname.trim() === '') {
+    return res.status(400).json({ message: '昵称不能为空' });
+  }
+
+  let connection;
+  try {
+    connection = await oracledb.getConnection({
+      user: process.env.ORACLE_USER,
+      password: process.env.ORACLE_PASSWORD,
+      connectString: process.env.ORACLE_DSN
+    });
+
+    const result = await connection.execute(
+      `UPDATE accounts SET nickname = :nickname WHERE student_id = :id`,
+      { nickname: newNickname.trim(), id: studentId },
+      { autoCommit: true }
+    );
+
+    if (result.rowsAffected === 0) {
+      return res.status(404).json({ message: '未找到该学号对应的账号' });
+    }
+
+    res.json({ success: true, message: '昵称修改成功' });
+
+  } catch (err) {
+    console.error(`为学号 ${studentId} 修改昵称失败:`, err);
+    res.status(500).json({ message: '服务器错误，修改昵称失败' });
+  } finally {
+    if (connection) {
+      await connection.close();
+    }
   }
 });
 
