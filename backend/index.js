@@ -1,17 +1,27 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const oracledb = require('oracledb');
-const bcrypt = require('bcrypt');
+
+try {
+  oracledb.initOracleClient({ libDir: 'D:\\oracle_client\\instantclient_21_18' });
+  console.log('✅ Oracle Client 初始化成功 - 主服务');
+  console.log('Oracle 客户端版本:', oracledb.oracleClientVersion); 
+  console.log('Oracle 客户端版本字符串:', oracledb.oracleClientVersionString);
+} catch (err) {
+  console.error('❌ Oracle Client 初始化失败:', err);
+}
+
+const bcrypt = require('bcryptjs');
 // 用于在服务器端存储用户 session，实现登录状态保持
 const session = require('express-session');
-const path = require('path');
+const cors = require('cors');
 // 加载 .env 文件中的环境变量
 require('dotenv').config();
 
 const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
+app.use(cors());
 app.use(session({
   secret: 'super-secret-key',
   resave: false,
@@ -52,7 +62,7 @@ app.post('/login', async (req, res) => {
       return res.status(404).json({ error: '账号不存在或未激活' });
     }
 
-    const passwordMatch = await bcrypt.compare(password, account.PASSWORD);
+    const passwordMatch = (password === account.PASSWORD);
     if (!passwordMatch) {
       return res.status(401).json({ error: '密码错误' });
     }
@@ -70,7 +80,7 @@ app.post('/login', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('登录失败:', err);
+    console.error('登录失败:', err.stack || err.message || err);
     res.status(500).json({ error: '服务器错误' });
   } finally {
     if (connection) {
