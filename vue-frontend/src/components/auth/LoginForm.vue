@@ -74,8 +74,8 @@ const validateForm = () => {
     isValid = false
   }
 
-  if (formData.password.length < 6) {
-    errors.password = '密码至少需要6位'
+  if (formData.password.length < 1) {
+    errors.password = '密码至少需要1位'
     isValid = false
   }
 
